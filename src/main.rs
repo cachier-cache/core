@@ -10,7 +10,7 @@ use tokio::net::{TcpListener, TcpStream};
 struct Command {
     command: String,
     key: String,
-    value: String,
+    value: Option<String>,
     ttl: Option<i64>,
 }
 
@@ -72,7 +72,7 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, Hash>>>
                             };
 
                             let new_hash = Hash {
-                                value: value.clone(),
+                                value: value.clone().unwrap(),
                                 exp,
                             };
 
