@@ -10,6 +10,7 @@
         - remove all the unwraps
         - create a 'batch' command, define a schema for it to take one dict with a bunch of key and value pairs (does all the pairs have the same expiry? or separate expiries?) (DO BOTH)
         - add metrics like pg_stats?
+        - better error messages
 -->
 
 <!-- TODO: protocol buffers:
