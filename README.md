@@ -14,6 +14,7 @@
         - separate code in different files and folders i.e. models in models dir
 	- delete command
 	- create a cli tool like redis
+	- create a frontend like akms with docs and a hosted server(http only)
 -->
 
 <!-- TODO: protocol buffers:
