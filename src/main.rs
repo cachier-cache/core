@@ -27,7 +27,10 @@ async fn write_to_stream(
     stream.write_all(data.as_bytes()).await.map_err(Into::into)
 }
 
-async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, Hash>>>) -> Result<(), Box<dyn Error>> {
+async fn handle_client(
+    stream: TcpStream,
+   map: Arc<Mutex<HashMap<String, Hash>>>,
+) -> Result<(), Box<dyn Error>> {
     let (reader, writer) = split(stream);
     let mut reader = BufReader::new(reader);
     let mut writer = writer;
@@ -78,7 +81,7 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, Hash>>>
                                 "'set' command requires 'value' field".to_string(),
                             );
                             write_to_stream(&mut writer, serde_json::to_string(&response)?).await?;
-
+                            buffer.clear();
                             continue;
                         }
                     }
