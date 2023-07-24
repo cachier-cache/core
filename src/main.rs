@@ -28,7 +28,7 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, String>
                         Ok(list) => {
                             // If the JSON was successfully parsed as an array, insert all key-value pairs into the map.
                             for kv in list {
-                                for (key, value) in kv {
+                                if let Some((key, value)) = kv.into_iter().next() {
                                     map.insert(key, value);
                                 }
                             }
@@ -50,6 +50,9 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, String>
                         }
                     }
                 }
+
+                // print the current map
+                println!("current map: {:?}", map.lock().unwrap());
 
                 if let Err(e) = writer.write_all(buffer.as_bytes()).await {
                     eprintln!("failed to write to socket; err = {:?}", e);
@@ -73,6 +76,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("Server listening...");
 
     let map = Arc::new(Mutex::new(HashMap::<String, String>::new()));
+
+    println!("current map: {:?}", map.lock().unwrap());
 
     loop {
         match listener.accept().await {
