@@ -5,6 +5,12 @@ use tokio::io::AsyncBufReadExt;
 use tokio::io::{split, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 
+#[derive(Debug, serde::Deserialize)]
+struct Command {
+    command: String,
+    data: HashMap<String, String>,
+}
+
 async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, String>>>) {
     let (reader, writer) = split(stream);
     let mut reader = BufReader::new(reader);
@@ -18,21 +24,47 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, String>
                     break;
                 }
 
+                let command: Command = match serde_json::from_str(&buffer) {
+                    Ok(cmd) => cmd,
+                    Err(e) => {
+                        eprintln!("Failed to parse JSON; err = {:?}", e);
+                        continue;
+                    }
+                };
+
+                let mut response = HashMap::<String, String>::new();
+
                 {
                     let mut map = map.lock().unwrap();
-                    match serde_json::from_str::<HashMap<String, String>>(&buffer) {
-                        Ok(kv) => {
-                            map.extend(kv);
-                        }
-                        Err(e) => {
-                            eprintln!("Failed to parse JSON; err = {:?}", e);
+                    match command.command.as_str() {
+                        "set" => {
+                            map.extend(command.data);
+                            response.insert("status".to_string(), "ok".to_string());
+                        },
+                        "get" => {
+                            let key = command.data.get("key").unwrap();
+                            let value = map.get(key);
+                            response.insert("status".to_string(), "ok".to_string());
+                            match value {
+                                Some(v) => {
+                                    response.insert("value".to_string(), v.to_string());
+                                },
+                                None => {
+                                    response.insert("value".to_string(), "".to_string());
+                                }
+                            }
+                        },
+                        _ => {
+                            eprintln!("Unknown command: {}", command.command);
                         }
                     }
 
                     println!("current map: {:?}", map);
                 }
 
-                if let Err(e) = writer.write_all(buffer.as_bytes()).await {
+                if let Err(e) = writer.write_all(
+                    serde_json::to_string(&response).unwrap().as_bytes(),
+                ).await {
                     eprintln!("failed to write to socket; err = {:?}", e);
                     break;
                 }
