@@ -63,21 +63,29 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, Hash>>>
                     let mut map = map.lock().unwrap();
                     match command.command.as_str() {
                         "set" => {
-                            let key = &command.key;
-                            let value = &command.value;
+                            if let Some(value) = &command.value {
+                                let exp = match command.ttl {
+                                    Some(ttl) => Some(ttl + chrono::Utc::now().timestamp()),
+                                    None => None,
+                                };
 
-                            let exp = match command.ttl {
-                                Some(ttl) => Some(ttl + chrono::Utc::now().timestamp()),
-                                None => None,
-                            };
+                                let new_hash = Hash {
+                                    value: value.clone(),
+                                    exp,
+                                };
 
-                            let new_hash = Hash {
-                                value: value.clone().unwrap(),
-                                exp,
-                            };
-
-                            map.insert(key.clone(), new_hash);
-                            response.insert("status".to_string(), "ok".to_string());
+                                map.insert(command.key.clone(), new_hash);
+                                response.insert("status".to_string(), "ok".to_string());
+                            } else {
+                                eprintln!("'set' command requires 'value' field");
+                                response.insert("status".to_string(), "error".to_string());
+                                response.insert(
+                                    "message".to_string(),
+                                    "'set' command requires 'value' field".to_string(),
+                                );
+                                // TODO: i need to send the response here
+                                continue;
+                            }
                         }
                         "get" => {
                             let key = &command.key;
