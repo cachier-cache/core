@@ -20,39 +20,17 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, String>
 
                 {
                     let mut map = map.lock().unwrap();
-                    // Use or modify the map here.
-                    // The map is locked in this scope, and will be unlocked
-                    // when the scope ends.
-
-                    match serde_json::from_str::<Vec<HashMap<String, String>>>(&buffer) {
-                        Ok(list) => {
-                            // If the JSON was successfully parsed as an array, insert all key-value pairs into the map.
-                            for kv in list {
-                                if let Some((key, value)) = kv.into_iter().next() {
-                                    map.insert(key, value);
-                                }
-                            }
+                    match serde_json::from_str::<HashMap<String, String>>(&buffer) {
+                        Ok(kv) => {
+                            map.extend(kv);
                         }
-                        Err(_) => {
-                            // If parsing as an array failed, try to parse as a single object instead.
-                            match serde_json::from_str::<HashMap<String, String>>(&buffer) {
-                                Ok(kv) => {
-                                    // If the JSON was successfully parsed as a single object, insert the key-value pair into the map.
-                                    for (key, value) in kv {
-                                        map.insert(key, value);
-                                    }
-                                }
-                                Err(e) => {
-                                    // If this also failed, then the JSON was in an invalid format.
-                                    eprintln!("Failed to parse JSON; err = {:?}", e);
-                                }
-                            }
+                        Err(e) => {
+                            eprintln!("Failed to parse JSON; err = {:?}", e);
                         }
                     }
-                }
 
-                // print the current map
-                println!("current map: {:?}", map.lock().unwrap());
+                    println!("current map: {:?}", map);
+                }
 
                 if let Err(e) = writer.write_all(buffer.as_bytes()).await {
                     eprintln!("failed to write to socket; err = {:?}", e);
@@ -76,7 +54,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("Server listening...");
 
     let map = Arc::new(Mutex::new(HashMap::<String, String>::new()));
-
     println!("current map: {:?}", map.lock().unwrap());
 
     loop {
