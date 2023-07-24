@@ -1,9 +1,15 @@
 # core
 
+## USES UTC EPOCH TIME
+
 <!--
     TODO:
         - add an expiry, might need to restructure how it works, (use numbers)
         - make the get more efficient as it is somewhat of a big string, it should just be the value or empty string if non-existent key
+        - send errors back
+        - remove all the unwraps
+        - create a 'batch' command, define a schema for it to take one dict with a bunch of key and value pairs (does all the pairs have the same expiry? or separate expiries?) (DO BOTH)
+        - add metrics like pg_stats?
 -->
 
 <!-- TODO: protocol buffers:
