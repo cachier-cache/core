@@ -48,7 +48,7 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, Hash>>>
                         eprintln!("Failed to parse JSON; err = {:?}", e);
                         response.insert("status".to_string(), "error".to_string());
                         response.insert("message".to_string(), e.to_string());
-                        write_to_stream(&mut writer, serde_json::to_string(&response).unwrap()).await?;
+                        write_to_stream(&mut writer, serde_json::to_string(&response)?).await?;
 
                         continue;
                     }
@@ -77,7 +77,7 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, Hash>>>
                                 "message".to_string(),
                                 "'set' command requires 'value' field".to_string(),
                             );
-                            write_to_stream(&mut writer, serde_json::to_string(&response).unwrap()).await?;
+                            write_to_stream(&mut writer, serde_json::to_string(&response)?).await?;
 
                             continue;
                         }
