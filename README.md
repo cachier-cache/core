@@ -12,6 +12,7 @@
         - add metrics like pg_stats?
         - better error messages
         - separate code in different files and folders i.e. models in models dir
+	- delete command
 -->
 
 <!-- TODO: protocol buffers:
