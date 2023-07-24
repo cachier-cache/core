@@ -23,6 +23,32 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, String>
                     // Use or modify the map here.
                     // The map is locked in this scope, and will be unlocked
                     // when the scope ends.
+
+                    match serde_json::from_str::<Vec<HashMap<String, String>>>(&buffer) {
+                        Ok(list) => {
+                            // If the JSON was successfully parsed as an array, insert all key-value pairs into the map.
+                            for kv in list {
+                                for (key, value) in kv {
+                                    map.insert(key, value);
+                                }
+                            }
+                        }
+                        Err(_) => {
+                            // If parsing as an array failed, try to parse as a single object instead.
+                            match serde_json::from_str::<HashMap<String, String>>(&buffer) {
+                                Ok(kv) => {
+                                    // If the JSON was successfully parsed as a single object, insert the key-value pair into the map.
+                                    for (key, value) in kv {
+                                        map.insert(key, value);
+                                    }
+                                }
+                                Err(e) => {
+                                    // If this also failed, then the JSON was in an invalid format.
+                                    eprintln!("Failed to parse JSON; err = {:?}", e);
+                                }
+                            }
+                        }
+                    }
                 }
 
                 if let Err(e) = writer.write_all(buffer.as_bytes()).await {
