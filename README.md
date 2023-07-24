@@ -16,6 +16,7 @@
 	- create a cli tool like redis
 	- create a frontend like akms with docs and a hosted server(http only)
 	- dockerize this and publish to a image repository
+	- need another server for public use (i.e. each hash is contained within a user)
 -->
 
 <!-- TODO: protocol buffers:
