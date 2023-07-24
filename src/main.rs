@@ -29,7 +29,7 @@ async fn write_to_stream(
 
 async fn handle_client(
     stream: TcpStream,
-   map: Arc<Mutex<HashMap<String, Hash>>>,
+    map: Arc<Mutex<HashMap<String, Hash>>>,
 ) -> Result<(), Box<dyn Error>> {
     let (reader, writer) = split(stream);
     let mut reader = BufReader::new(reader);
