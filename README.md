@@ -15,6 +15,7 @@
 	- delete command
 	- create a cli tool like redis
 	- create a frontend like akms with docs and a hosted server(http only)
+	- dockerize this and publish to a image repository
 -->
 
 <!-- TODO: protocol buffers:
