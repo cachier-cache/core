@@ -1,7 +1,5 @@
 # core
 
-<!-- TODO: add GET, PUT appended to a string so that the server knows when to return a value or something -->
-
 <!-- TODO: add an expiry, might need to restructure how it works, (use numbers) -->
 
 <!-- TODO: protocol buffers:
