@@ -23,11 +23,11 @@ struct Hash {
 async fn write_to_stream(
     stream: &mut WriteHalf<TcpStream>,
     data: String,
-) -> Result<(), std::io::Error> {
-    stream.write_all(data.as_bytes()).await
+) -> Result<(), Box<dyn Error>> {
+    stream.write_all(data.as_bytes()).await.map_err(Into::into)
 }
 
-async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, Hash>>>) {
+async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, Hash>>>) -> Result<(), Box<dyn Error>> {
     let (reader, writer) = split(stream);
     let mut reader = BufReader::new(reader);
     let mut writer = writer;
@@ -48,12 +48,7 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, Hash>>>
                         eprintln!("Failed to parse JSON; err = {:?}", e);
                         response.insert("status".to_string(), "error".to_string());
                         response.insert("message".to_string(), e.to_string());
-                        if let Err(e) =
-                            write_to_stream(&mut writer, serde_json::to_string(&response).unwrap())
-                                .await
-                        {
-                            eprintln!("failed to write to socket; err = {:?}", e);
-                        }
+                        write_to_stream(&mut writer, serde_json::to_string(&response).unwrap()).await?;
 
                         continue;
                     }
@@ -72,7 +67,7 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, Hash>>>
                                 exp,
                             };
 
-                            let mut map = map.lock().unwrap();
+                            let mut map = map.lock().map_err(|_| "Mutex is poisoned")?;
                             map.insert(command.key.clone(), new_hash);
                             response.insert("status".to_string(), "ok".to_string());
                         } else {
@@ -82,19 +77,15 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, Hash>>>
                                 "message".to_string(),
                                 "'set' command requires 'value' field".to_string(),
                             );
-                            if let Err(e) =
-                                write_to_stream(&mut writer, serde_json::to_string(&response).unwrap())
-                                    .await
-                            {
-                                eprintln!("failed to write to socket; err = {:?}", e);
-                            }
+                            write_to_stream(&mut writer, serde_json::to_string(&response).unwrap()).await?;
+
                             continue;
                         }
                     }
                     "get" => {
                         let mut value_str = "".to_string();
                         {
-                            let map = map.lock().unwrap();
+                            let map = map.lock().map_err(|_| "Mutex is poisoned")?;
                             if let Some(value) = map.get(&command.key) {
                                 let now = chrono::Utc::now().timestamp();
                                 value_str = match value.exp {
@@ -117,13 +108,9 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, Hash>>>
                     }
                 }
 
-                if let Err(e) = writer
-                    .write_all(serde_json::to_string(&response).unwrap().as_bytes())
-                    .await
-                {
-                    eprintln!("failed to write to socket; err = {:?}", e);
-                    break;
-                }
+                writer
+                    .write_all(serde_json::to_string(&response)?.as_bytes())
+                    .await?;
             }
             Err(e) => {
                 eprintln!("failed to read from socket; err = {:?}", e);
@@ -134,6 +121,8 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, Hash>>>
     }
 
     println!("Connection closed.");
+
+    Ok(())
 }
 
 #[tokio::main]
@@ -142,14 +131,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("Server listening...");
 
     let map = Arc::new(Mutex::new(HashMap::<String, Hash>::new()));
-    println!("current map: {:?}", map.lock().unwrap());
+    println!("current map: {:?}", map.lock());
 
     loop {
         match listener.accept().await {
             Ok((stream, _addr)) => {
                 println!("New connection!");
                 let map = Arc::clone(&map);
-                tokio::spawn(handle_client(stream, map));
+                tokio::spawn(async {
+                    if let Err(e) = handle_client(stream, map).await {
+                        eprintln!("Failed to handle client; error = {:?}", e);
+                    }
+                });
             }
             Err(e) => {
                 eprintln!("Failed to accept connection; error = {:?}", e);
