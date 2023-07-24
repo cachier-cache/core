@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 use tokio::io::AsyncBufReadExt;
+use tokio::io::WriteHalf;
 use tokio::io::{split, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -9,9 +10,23 @@ use tokio::net::{TcpListener, TcpStream};
 struct Command {
     command: String,
     data: HashMap<String, String>,
+    ttl: Option<i64>,
 }
 
-async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, String>>>) {
+#[derive(Debug)]
+struct Hash {
+    value: String,
+    exp: Option<i64>,
+}
+
+async fn write_to_stream(
+    stream: &mut WriteHalf<TcpStream>,
+    data: String,
+) -> Result<(), std::io::Error> {
+    stream.write_all(data.as_bytes()).await
+}
+
+async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, Hash>>>) {
     let (reader, writer) = split(stream);
     let mut reader = BufReader::new(reader);
     let mut writer = writer;
@@ -24,36 +39,91 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, String>
                     break;
                 }
 
+                let mut response = HashMap::<String, String>::new();
+
                 let command: Command = match serde_json::from_str(&buffer) {
                     Ok(cmd) => cmd,
                     Err(e) => {
                         eprintln!("Failed to parse JSON; err = {:?}", e);
+                        response.insert("status".to_string(), "error".to_string());
+                        response.insert("message".to_string(), e.to_string());
+                        if let Err(e) =
+                            write_to_stream(&mut writer, serde_json::to_string(&response).unwrap())
+                                .await
+                        {
+                            eprintln!("failed to write to socket; err = {:?}", e);
+                        }
+
                         continue;
                     }
                 };
-
-                let mut response = HashMap::<String, String>::new();
 
                 {
                     let mut map = map.lock().unwrap();
                     match command.command.as_str() {
                         "set" => {
-                            map.extend(command.data);
+                            let key = match command.data.get("key") {
+                                Some(key) => key,
+                                None => {
+                                    eprintln!("'set' command requires 'key' field");
+                                    response.insert("status".to_string(), "error".to_string());
+                                    response.insert(
+                                        "message".to_string(),
+                                        "'set' command requires 'key' field".to_string(),
+                                    );
+                                    // TODO: i need to send the response here
+                                    continue;
+                                }
+                            };
+
+                            let value = match command.data.get("value") {
+                                Some(value) => value,
+                                None => {
+                                    eprintln!("'set' command requires 'value' field");
+                                    continue;
+                                }
+                            };
+
+                            let exp = match command.ttl {
+                                Some(ttl) => Some(ttl + chrono::Utc::now().timestamp()),
+                                None => {
+                                    eprintln!("'date' object requires 'exp' field");
+                                    continue;
+                                }
+                            };
+
+                            let new_hash = Hash {
+                                value: value.clone(),
+                                exp,
+                            };
+
+                            map.insert(key.clone(), new_hash);
                             response.insert("status".to_string(), "ok".to_string());
-                        },
+                        }
                         "get" => {
                             let key = command.data.get("key").unwrap();
                             let value = map.get(key);
                             response.insert("status".to_string(), "ok".to_string());
                             match value {
                                 Some(v) => {
-                                    response.insert("value".to_string(), v.to_string());
-                                },
+                                    let now = chrono::Utc::now().timestamp();
+                                    let value = match v.exp {
+                                        Some(exp) => {
+                                            if exp < now {
+                                                "".to_string()
+                                            } else {
+                                                v.value.to_string()
+                                            }
+                                        }
+                                        None => v.value.to_string(),
+                                    };
+                                    response.insert("value".to_string(), value);
+                                }
                                 None => {
                                     response.insert("value".to_string(), "".to_string());
                                 }
                             }
-                        },
+                        }
                         _ => {
                             eprintln!("Unknown command: {}", command.command);
                         }
@@ -62,9 +132,10 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, String>
                     println!("current map: {:?}", map);
                 }
 
-                if let Err(e) = writer.write_all(
-                    serde_json::to_string(&response).unwrap().as_bytes(),
-                ).await {
+                if let Err(e) = writer
+                    .write_all(serde_json::to_string(&response).unwrap().as_bytes())
+                    .await
+                {
                     eprintln!("failed to write to socket; err = {:?}", e);
                     break;
                 }
@@ -85,7 +156,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind("localhost:8080").await?;
     println!("Server listening...");
 
-    let map = Arc::new(Mutex::new(HashMap::<String, String>::new()));
+    let map = Arc::new(Mutex::new(HashMap::<String, Hash>::new()));
     println!("current map: {:?}", map.lock().unwrap());
 
     loop {
