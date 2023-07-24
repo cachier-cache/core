@@ -13,6 +13,7 @@
         - better error messages
         - separate code in different files and folders i.e. models in models dir
 	- delete command
+	- create a cli tool like redis
 -->
 
 <!-- TODO: protocol buffers:
