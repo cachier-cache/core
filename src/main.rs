@@ -59,64 +59,62 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, Hash>>>
                     }
                 };
 
-                {
-                    let mut map = map.lock().unwrap();
-                    match command.command.as_str() {
-                        "set" => {
-                            if let Some(value) = &command.value {
-                                let exp = match command.ttl {
-                                    Some(ttl) => Some(ttl + chrono::Utc::now().timestamp()),
-                                    None => None,
-                                };
+                match command.command.as_str() {
+                    "set" => {
+                        if let Some(value) = &command.value {
+                            let exp = match command.ttl {
+                                Some(ttl) => Some(ttl + chrono::Utc::now().timestamp()),
+                                None => None,
+                            };
 
-                                let new_hash = Hash {
-                                    value: value.clone(),
-                                    exp,
-                                };
+                            let new_hash = Hash {
+                                value: value.clone(),
+                                exp,
+                            };
 
-                                map.insert(command.key.clone(), new_hash);
-                                response.insert("status".to_string(), "ok".to_string());
-                            } else {
-                                eprintln!("'set' command requires 'value' field");
-                                response.insert("status".to_string(), "error".to_string());
-                                response.insert(
-                                    "message".to_string(),
-                                    "'set' command requires 'value' field".to_string(),
-                                );
-                                // TODO: i need to send the response here
-                                continue;
-                            }
-                        }
-                        "get" => {
-                            let key = &command.key;
-                            let value = map.get(key);
+                            let mut map = map.lock().unwrap();
+                            map.insert(command.key.clone(), new_hash);
                             response.insert("status".to_string(), "ok".to_string());
-                            match value {
-                                Some(v) => {
-                                    let now = chrono::Utc::now().timestamp();
-                                    let value = match v.exp {
-                                        Some(exp) => {
-                                            if exp < now {
-                                                "".to_string()
-                                            } else {
-                                                v.value.to_string()
-                                            }
-                                        }
-                                        None => v.value.to_string(),
-                                    };
-                                    response.insert("value".to_string(), value);
-                                }
-                                None => {
-                                    response.insert("value".to_string(), "".to_string());
-                                }
+                        } else {
+                            eprintln!("'set' command requires 'value' field");
+                            response.insert("status".to_string(), "error".to_string());
+                            response.insert(
+                                "message".to_string(),
+                                "'set' command requires 'value' field".to_string(),
+                            );
+                            if let Err(e) =
+                                write_to_stream(&mut writer, serde_json::to_string(&response).unwrap())
+                                    .await
+                            {
+                                eprintln!("failed to write to socket; err = {:?}", e);
                             }
-                        }
-                        _ => {
-                            eprintln!("Unknown command: {}", command.command);
+                            continue;
                         }
                     }
-
-                    println!("current map: {:?}", map);
+                    "get" => {
+                        let mut value_str = "".to_string();
+                        {
+                            let map = map.lock().unwrap();
+                            if let Some(value) = map.get(&command.key) {
+                                let now = chrono::Utc::now().timestamp();
+                                value_str = match value.exp {
+                                    Some(exp) => {
+                                        if exp < now {
+                                            "".to_string()
+                                        } else {
+                                            value.value.to_string()
+                                        }
+                                    }
+                                    None => value.value.to_string(),
+                                };
+                            }
+                        }
+                        response.insert("status".to_string(), "ok".to_string());
+                        response.insert("value".to_string(), value_str);
+                    }
+                    _ => {
+                        eprintln!("Unknown command: {}", command.command);
+                    }
                 }
 
                 if let Err(e) = writer
