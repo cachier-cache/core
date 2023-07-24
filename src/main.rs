@@ -49,7 +49,7 @@ async fn handle_client(stream: TcpStream, map: Arc<Mutex<HashMap<String, Hash>>>
                         response.insert("status".to_string(), "error".to_string());
                         response.insert("message".to_string(), e.to_string());
                         write_to_stream(&mut writer, serde_json::to_string(&response)?).await?;
-
+                        buffer.clear();
                         continue;
                     }
                 };
