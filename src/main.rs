@@ -130,7 +130,7 @@ async fn handle_client(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let listener = TcpListener::bind("localhost:8080").await?;
+    let listener = TcpListener::bind("0.0.0.0:8080").await?;
     println!("Server listening...");
 
     let map = Arc::new(Mutex::new(HashMap::<String, Hash>::new()));
