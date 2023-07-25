@@ -4,4 +4,8 @@ services:
   core:
     build: .
     ports:
-      - "8080:8080"
+      - "8080-8082:8080"
+    deploy:
+      replicas: 3
+      mode: replicated
+      endpoint_mode: dnsrr
