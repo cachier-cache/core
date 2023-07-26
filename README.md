@@ -18,6 +18,7 @@
         - dockerize this and publish to a image repository
         - need another server for public use (i.e. each hash is contained within a user)
         - need to delete expired keys
+        - have different drivers for storage (i.e. currently only memory but need postgres storage, file storage, etc so data is persistent)
 -->
 
 <!-- TODO: protocol buffers:
